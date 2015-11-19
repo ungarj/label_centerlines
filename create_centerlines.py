@@ -54,22 +54,26 @@ def main(args):
     parser.add_argument(
         "--segmentize_maxlen",
         type=float,
-        help="maximum length used when segmentizing polygon borders"
+        help="maximum length used when segmentizing polygon borders",
+        default=0.5
         )
     parser.add_argument(
         "--max_points",
         type=int,
-        help="number of points per geometry allowed before simplifying"
+        help="number of points per geometry allowed before simplifying",
+        default=1000
         )
     parser.add_argument(
         "--simplification",
         type=float,
-        help="value which increases simplification when necessary"
+        help="value which increases simplification when necessary",
+        default=0.1
         )
     parser.add_argument(
         "--smooth",
         type=int,
-        help="smoothness of the output centerlines"
+        help="smoothness of the output centerlines",
+        default=5
         )
     parsed = parser.parse_args(args)
     input_shp = parsed.input_shp
@@ -125,7 +129,7 @@ def main(args):
 
 def get_centerlines_from_geom(
     geometry,
-    segmentize_maxlen=0.1,
+    segmentize_maxlen=0.5,
     max_points=1000,
     simplification=0.1,
     smooth_sigma=5
