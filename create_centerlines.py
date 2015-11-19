@@ -102,6 +102,8 @@ def main(args):
                     centerlines_geom = get_centerlines_from_geom(
                         geom,
                         segmentize_maxlen=segmentize_maxlen,
+                        max_points=max_points,
+                        simplification=simplification,
                         smooth_sigma=smooth_sigma
                         )
                 except:
