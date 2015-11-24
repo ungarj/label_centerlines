@@ -3,7 +3,8 @@
 This script reads polygon datasets such as i.e. the [geographic regions](
 http://www.naturalearthdata.com/http//www.naturalearthdata.com/download/10m/physical/ne_10m_geography_regions_polys.zip)
 from [Natural Earth](http://www.naturalearthdata.com/) and extracts smoothed
-centerlines for better label placement.
+centerlines for better label placement. This method is used to create the label
+layer of [EOX Maps](http://maps.eox.at)
 
 To do so, it basically creates a [Voronoi diagram](
 https://en.wikipedia.org/wiki/Voronoi_diagram) to get the polygon skeleton.
