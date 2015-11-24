@@ -9,6 +9,8 @@ To do so, it basically creates a [Voronoi diagram](
 https://en.wikipedia.org/wiki/Voronoi_diagram) to get the polygon skeleton.
 Finally, the centerline is selected and smoothed.
 
+![process steps animation](img/centerline.gif)
+
 Steps:
 
 1. Extract outline.

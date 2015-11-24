@@ -71,6 +71,13 @@ def get_centerlines_from_geom(
         else:
             boundary = geometry.boundary
 
+        # print list(boundary.coords)
+        if debug:
+            debug_output['original_points'] = MultiPoint([
+                point
+                for point in list(boundary.coords)
+            ])
+
         # Convert to OGR object and segmentize.
         ogr_boundary = ogr.CreateGeometryFromWkb(boundary.wkb)
         ogr_boundary.Segmentize(segmentize_maxlen)
@@ -89,7 +96,7 @@ def get_centerlines_from_geom(
             simplified = boundary.simplify(tolerance)
             points = simplified.coords
         if debug:
-            debug_output['points'] = MultiPoint([
+            debug_output['segmentized_points'] = MultiPoint([
                 point
                 for point in points
             ])
