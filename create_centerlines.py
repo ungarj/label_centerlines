@@ -28,8 +28,9 @@ import os
 import sys
 import argparse
 import fiona
+import multiprocessing
 from shapely.geometry import shape, mapping
-from progressbar import ProgressBar
+from functools import partial
 
 from src_create_centerlines import get_centerlines_from_geom
 
@@ -70,6 +71,12 @@ def main(args):
         help="smoothness of the output centerlines",
         default=5
         )
+    parser.add_argument(
+        "--output_driver",
+        type=str,
+        help="write to 'ESRI Shapefile' or 'GeoJSON' (default)",
+        default="GeoJSON"
+    )
     parsed = parser.parse_args(args)
     input_shp = parsed.input_shp
     output_geojson = parsed.output_geojson
@@ -77,49 +84,84 @@ def main(args):
     max_points = parsed.max_points
     simplification = parsed.simplification
     smooth_sigma = parsed.smooth
+    driver = parsed.output_driver
 
 
-    with fiona.open(input_shp, "r") as regions:
-        out_schema = regions.schema.copy()
+    with fiona.open(input_shp, "r") as inp_polygons:
+        out_schema = inp_polygons.schema.copy()
         out_schema['geometry'] = "LineString"
         with fiona.open(
             output_geojson,
             "w",
             schema=out_schema,
-            crs=regions.crs,
-            driver="GeoJSON"
+            crs=inp_polygons.crs,
+            driver=driver
             ) as out_centerlines:
-            pbar = ProgressBar(maxval=len(regions)).start()
-            progress_counter = 0
             failed_features = []
-            print len(regions), "features"
-            for region in regions:
-                progress_counter += 1
-                pbar.update(progress_counter)
-                geom = shape(region['geometry'])
-                try:
-                    centerlines_geom = get_centerlines_from_geom(
-                        geom,
-                        segmentize_maxlen=segmentize_maxlen,
-                        max_points=max_points,
-                        simplification=simplification,
-                        smooth_sigma=smooth_sigma
-                        )
-                except:
-                    raise
-                if centerlines_geom:
-                    centerline = {
-                        'properties': region['properties'],
-                        'geometry': mapping(centerlines_geom)
-                        }
-                    out_centerlines.write(centerline)
+            feature_count = 0
+            try:
+                pool = multiprocessing.Pool()
+                func = partial(
+                    worker,
+                    segmentize_maxlen,
+                    max_points,
+                    simplification,
+                    smooth_sigma
+                    )
+                for feature_name, output in pool.imap_unordered(
+                    func,
+                    inp_polygons,
+                    chunksize=8
+                    ):
+                    out_centerlines.write(output)
+            except KeyboardInterrupt:
+                print "Caught KeyboardInterrupt, terminating workers"
+                pool.terminate()
+            except Exception as e:
+                if feature_name:
+                    print ("%s: FAILED (%s)" %(feature_name, e))
                 else:
-                    failed_features.append(region['properties']['name'])
-            pbar.finish()
-            if len(failed_features) > 0:
-                print "failed:"
-                for feature in failed_features:
-                    print feature
+                    print ("feature: FAILED (%s)" %(e))
+            finally:
+                pool.close()
+                pool.join()
+
+
+def worker(
+    segmentize_maxlen,
+    max_points,
+    simplification,
+    smooth_sigma,
+    feature
+    ):
+
+    geom = shape(feature['geometry'])
+    for name_field in ["name", "Name", "NAME"]:
+        if name_field in feature["properties"]:
+            feature_name = feature["properties"][name_field]
+            break
+        else:
+            feature_name = None
+    if feature_name:
+        print "processing", feature_name
+    try:
+        centerlines_geom = get_centerlines_from_geom(
+            geom,
+            segmentize_maxlen=segmentize_maxlen,
+            max_points=max_points,
+            simplification=simplification,
+            smooth_sigma=smooth_sigma
+            )
+    except:
+        raise
+    if centerlines_geom:
+        return (
+            feature_name,
+            {
+                'properties': feature['properties'],
+                'geometry': mapping(centerlines_geom)
+            }
+        )
 
 
 if __name__ == "__main__":
