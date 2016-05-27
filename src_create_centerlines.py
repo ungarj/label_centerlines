@@ -56,6 +56,13 @@ def get_centerlines_from_geom(
     LineString or MultiLineString geometries.
     """
 
+    if geometry.geom_type not in ["MultiPolygon", "Polygon"]:
+        raise TypeError(
+            "Geometry type must be Polygon or MultiPolygon, not %s" %(
+                geometry.geom_type
+                )
+            )
+
     if geometry.geom_type == "MultiPolygon":
         out_centerlines = MultiLineString([
             get_centerlines_from_geom(subgeom, segmentize_maxlen)

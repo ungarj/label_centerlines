@@ -97,23 +97,29 @@ def main(args):
             crs=inp_polygons.crs,
             driver=driver
             ) as out_centerlines:
-            failed_features = []
-            feature_count = 0
+            pool = multiprocessing.Pool()
+            func = partial(
+                worker,
+                segmentize_maxlen,
+                max_points,
+                simplification,
+                smooth_sigma
+            )
             try:
-                pool = multiprocessing.Pool()
-                func = partial(
-                    worker,
-                    segmentize_maxlen,
-                    max_points,
-                    simplification,
-                    smooth_sigma
-                    )
+                feature_count = 0
                 for feature_name, output in pool.imap_unordered(
                     func,
-                    inp_polygons,
-                    chunksize=8
+                    inp_polygons
                     ):
-                    out_centerlines.write(output)
+                    feature_count += 1
+                    if output:
+                        out_centerlines.write(output)
+                        print "written feature %s: %s" %(
+                            feature_count,
+                            feature_name
+                            )
+                    else:
+                        print "Invalid output for feature", feature_name
             except KeyboardInterrupt:
                 print "Caught KeyboardInterrupt, terminating workers"
                 pool.terminate()
@@ -122,6 +128,7 @@ def main(args):
                     print ("%s: FAILED (%s)" %(feature_name, e))
                 else:
                     print ("feature: FAILED (%s)" %(e))
+                raise
             finally:
                 pool.close()
                 pool.join()
@@ -152,6 +159,8 @@ def worker(
             simplification=simplification,
             smooth_sigma=smooth_sigma
             )
+    except TypeError as e:
+        print e
     except:
         raise
     if centerlines_geom:
@@ -162,6 +171,8 @@ def worker(
                 'geometry': mapping(centerlines_geom)
             }
         )
+    else:
+        return (None, None)
 
 
 if __name__ == "__main__":
