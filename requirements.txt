@@ -1,0 +1,4 @@
+Fiona>=1.7.0
+Shapely>=1.5
+scipy>=0.17
+networkx>=1.11
