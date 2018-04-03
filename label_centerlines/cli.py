@@ -1,4 +1,5 @@
 import click
+import concurrent.futures
 import fiona
 import logging
 from shapely.geometry import shape, mapping
@@ -63,8 +64,12 @@ def main(
     smooth, output_driver, debug
 ):
     if debug:
-        logging.getLogger("label_centerlines").setLevel(logging.DEBUG)
-        stream_handler.setLevel(logging.DEBUG)
+        log_level = logging.DEBUG
+    else:
+        log_level = logging.INFO
+    logging.getLogger("label_centerlines").setLevel(log_level)
+    stream_handler.setLevel(log_level)
+
     with fiona.open(input_path, "r") as src:
         with fiona.open(
             output_path,
@@ -73,15 +78,27 @@ def main(
             crs=src.crs,
             driver=output_driver
         ) as dst:
-            for feature in tqdm.tqdm(src):
-                centerline = get_centerline(shape(feature["geometry"]))
-                if centerline is None:
-                    logger.error(
-                        "centerline could not be extracted from feature %s",
-                        feature["properties"]
-                    )
-                    continue
-                dst.write({
-                    'properties': feature['properties'],
-                    'geometry': mapping(centerline)
-                })
+            with concurrent.futures.ProcessPoolExecutor() as executor:
+                shapes = [shape(f["geometry"]) for f in src]
+                for centerline, feature in tqdm.tqdm(
+                    zip(executor.map(
+                        get_centerline,
+                        shapes,
+                        [segmentize_maxlen for _ in range(len(src))],
+                        [max_points for _ in range(len(src))],
+                        [simplification for _ in range(len(src))],
+                        [smooth for _ in range(len(src))]
+                    ), src),
+                    disable=debug,
+                    total=len(src)
+                ):
+                    if centerline is None:
+                        logger.error(
+                            "centerline could not be extracted from feature %s",
+                            feature["properties"]
+                        )
+                        continue
+                    dst.write({
+                        'properties': feature['properties'],
+                        'geometry': mapping(centerline)
+                    })
