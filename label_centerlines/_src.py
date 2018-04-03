@@ -33,7 +33,6 @@ def get_centerline(
         (default: 5)
     """
     logger.debug("geometry type %s", geom.geom_type)
-
     if geom.geom_type == "MultiPolygon":
         logger.debug("MultiPolygon found with %s sub-geometries", len(geom))
         centerlines = []
@@ -80,8 +79,9 @@ def get_centerline(
         # determine longest path between all end nodes from graph
         end_nodes = _get_end_nodes(graph)
         if len(end_nodes) < 2:
-            logger.debug("too few end nodes of voronoi graph")
+            logger.debug("Polygon has too few points")
             return None
+        logger.debug("get longest path from %s end nodes", len(end_nodes))
         longest_paths = _get_longest_paths(end_nodes, graph)
         if logger.getEffectiveLevel() <= 10:
             logger.debug("longest paths:")
@@ -91,11 +91,12 @@ def get_centerline(
         # get least curved path from the five longest paths and convert to
         # centerline
         best_path = _get_least_curved_path(longest_paths[:5], vor.vertices)
-        logger.debug("best path: %s", best_path)
 
         logger.debug("smooth linestring")
-        return _smooth_linestring(
+        centerline = _smooth_linestring(
             LineString(vor.vertices[best_path]), smooth_sigma)
+        logger.debug("centerline: %s", centerline)
+        return centerline
 
     else:
         raise TypeError(
@@ -121,7 +122,7 @@ def _segmentize(geom, max_len):
 
 
 def _smooth_linestring(linestring, smooth_sigma):
-    """ Use a gauss filter to smooth out the LineString coordinates."""
+    """Use a gauss filter to smooth out the LineString coordinates."""
     return LineString(
         zip(
             np.array(filters.gaussian_filter1d(linestring.xy[0], smooth_sigma)),
@@ -132,17 +133,18 @@ def _smooth_linestring(linestring, smooth_sigma):
 
 def _get_longest_paths(nodes, graph, maxnum=5):
     """Return longest paths of all possible paths between a list of nodes."""
-    paths = []
-    distances = []
-    for node1, node2 in combinations(nodes, r=2):
-        try:
-            path = nx.shortest_path(graph, node1, node2, "weight")
-        except NetworkXNoPath:
-            continue
-        paths.append(path)
-        distances.append(_get_path_distance(path, graph))
+    def _gen_paths_distances():
+        for node1, node2 in combinations(nodes, r=2):
+            try:
+                # path = nx.shortest_path(graph, node1, node2, "weight")
+                yield nx.single_source_dijkstra(
+                    graph, node1, node2, 1000000, "weight"
+                )
+            except NetworkXNoPath:
+                continue
+
     return [
-        x for (y, x) in sorted(zip(distances, paths), reverse=True)
+        x for (y, x) in sorted(_gen_paths_distances(), reverse=True)
     ][:maxnum]
 
 
@@ -178,16 +180,6 @@ def _get_angle(edge1, edge2):
     v1 = edge1[0] - edge1[1]
     v2 = edge2[0] - edge2[1]
     return np.degrees(np.math.atan2(np.linalg.det([v1, v2]), np.dot(v1, v2)))
-
-
-def _get_path_distance(path, graph):
-    """Return weighted path distance."""
-    distance = 0
-    for i, w in enumerate(path):
-        if i + 1 < len(path):
-            for u, v, weight in graph.edges(data='weight'):
-                distance += weight
-    return distance
 
 
 def _get_end_nodes(graph):
