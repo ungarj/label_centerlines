@@ -95,20 +95,21 @@ def main(
         )
         executor = es.enter_context(concurrent.futures.ProcessPoolExecutor())
 
-        f_len = len(src)
-        for output in tqdm.tqdm(
-            executor.map(
-                _feature_worker,
-                src,
-                (segmentize_maxlen for _ in range(f_len)),
-                (max_points for _ in range(f_len)),
-                (simplification for _ in range(f_len)),
-                (smooth for _ in range(f_len))
-            ), disable=debug, total=f_len
+        tasks = (
+            executor.submit(
+                _feature_worker, feature, segmentize_maxlen, max_points,
+                simplification, smooth,
+            )
+            for feature in src
+        )
+        for task in tqdm.tqdm(
+            concurrent.futures.as_completed(tasks),
+            disable=debug,
+            total=len(src)
         ):
             # output is split up into parts of single part geometries to meet
             # GeoPackage requirements
-            for part in output:
+            for part in task.result():
                 feature, elapsed = part
                 if "geometry" in feature:
                     dst.write(feature)
