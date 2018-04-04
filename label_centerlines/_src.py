@@ -74,12 +74,12 @@ def get_centerline(
         # determine longest path between all end nodes from graph
         end_nodes = _get_end_nodes(graph)
         if len(end_nodes) < 2:
-            logger.error("Polygon has too few points")
+            logger.debug("Polygon has too few points")
             raise CenterlineError("Polygon has too few points")
         logger.debug("get longest path from %s end nodes", len(end_nodes))
         longest_paths = _get_longest_paths(end_nodes, graph)
         if not longest_paths:
-            logger.error("no paths found between end nodes")
+            logger.debug("no paths found between end nodes")
             raise CenterlineError("no paths found between end nodes")
         if logger.getEffectiveLevel() <= 10:
             logger.debug("longest paths:")
@@ -88,25 +88,35 @@ def get_centerline(
 
         # get least curved path from the five longest paths, smooth and
         # return as LineString
-        logger.debug("return linestring")
-        return _smooth_linestring(
+        centerline = _smooth_linestring(
             LineString(
                 vor.vertices[_get_least_curved_path(
                     longest_paths, vor.vertices
                 )]
             ), smooth_sigma
         )
+        logger.debug("centerline: %s", centerline)
+        logger.debug("return linestring")
+        return centerline
 
     elif geom.geom_type == "MultiPolygon":
         logger.debug("MultiPolygon found with %s sub-geometries", len(geom))
         # get centerline for each part Polygon and combine into MultiLineString
-        return MultiLineString([
-            get_centerline(
-                subgeom, segmentize_maxlen, max_points, simplification,
-                smooth_sigma
-            )
-            for subgeom in geom
-        ])
+        sub_centerlines = []
+        for subgeom in geom:
+            try:
+                sub_centerline = get_centerline(
+                    subgeom, segmentize_maxlen, max_points, simplification,
+                    smooth_sigma
+                )
+                sub_centerlines.append(sub_centerline)
+            except CenterlineError as e:
+                logger.debug("subgeometry error: %s", e)
+        # for MultPolygon, only raise CenterlineError if all subgeometries fail
+        if sub_centerlines:
+            return MultiLineString(sub_centerlines)
+        else:
+            raise CenterlineError("all subgeometries failed")
 
     else:
         raise TypeError(
