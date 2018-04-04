@@ -74,10 +74,13 @@ def get_centerline(
         # determine longest path between all end nodes from graph
         end_nodes = _get_end_nodes(graph)
         if len(end_nodes) < 2:
-            logger.debug("Polygon has too few points")
+            logger.error("Polygon has too few points")
             raise CenterlineError("Polygon has too few points")
         logger.debug("get longest path from %s end nodes", len(end_nodes))
         longest_paths = _get_longest_paths(end_nodes, graph)
+        if not longest_paths:
+            logger.error("no paths found between end nodes")
+            raise CenterlineError("no paths found between end nodes")
         if logger.getEffectiveLevel() <= 10:
             logger.debug("longest paths:")
             for path in longest_paths:
