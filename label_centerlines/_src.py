@@ -3,9 +3,12 @@ import logging
 import networkx as nx
 from networkx.exception import NetworkXNoPath
 import numpy as np
+import operator
 from scipy.spatial import Voronoi
 from scipy.ndimage import filters
 from shapely.geometry import LineString, MultiLineString, Point, MultiPoint
+
+from label_centerlines.exceptions import CenterlineError
 
 logger = logging.getLogger(__name__)
 
@@ -31,37 +34,29 @@ def get_centerline(
         (default: 0.05)
     smooth_sigma : Smoothness of the output centerlines.
         (default: 5)
+
+    Returns:
+    --------
+    geometry : LineString or MultiLineString
+
+    Raises:
+    -------
+    CenterlineError : if centerline cannot be extracted from Polygon
+    TypeError : if input geometry is not Polygon or MultiPolygon
+
     """
     logger.debug("geometry type %s", geom.geom_type)
-    if geom.geom_type == "MultiPolygon":
-        logger.debug("MultiPolygon found with %s sub-geometries", len(geom))
-        centerlines = []
-        for subgeom in geom:
-            centerline = get_centerline(
-                subgeom, segmentize_maxlen, max_points, simplification,
-                smooth_sigma
-            )
-            if centerline is not None:
-                logger.debug("subgeometries:")
-                logger.debug(centerline)
-                centerlines.append(centerline)
 
-        logger.debug("create MultiLineString")
-        return MultiLineString(centerlines)
-
-    elif geom.geom_type == "Polygon":
+    if geom.geom_type == "Polygon":
         # segmentized Polygon outline
-        outline = _segmentize(
-            geom.exterior,  # if len(geom.interiors) else geom.outline,
-            segmentize_maxlen
-        )
+        outline = _segmentize(geom.exterior, segmentize_maxlen)
         logger.debug("outline: %s", outline)
 
         # simplify segmentized geometry if necessary and get points
         outline_points = outline.coords
         simplification_updated = simplification
         while len(outline_points) > max_points:
-            # If geometry is too large, apply simplification until geometry
+            # if geometry is too large, apply simplification until geometry
             # is simplified enough (indicated by the "max_points" value)
             simplification_updated += simplification
             outline_points = outline.simplify(simplification_updated).coords
@@ -80,7 +75,7 @@ def get_centerline(
         end_nodes = _get_end_nodes(graph)
         if len(end_nodes) < 2:
             logger.debug("Polygon has too few points")
-            return None
+            raise CenterlineError("Polygon has too few points")
         logger.debug("get longest path from %s end nodes", len(end_nodes))
         longest_paths = _get_longest_paths(end_nodes, graph)
         if logger.getEffectiveLevel() <= 10:
@@ -88,15 +83,27 @@ def get_centerline(
             for path in longest_paths:
                 logger.debug(LineString(vor.vertices[path]))
 
-        # get least curved path from the five longest paths and convert to
-        # centerline
-        best_path = _get_least_curved_path(longest_paths[:5], vor.vertices)
+        # get least curved path from the five longest paths, smooth and
+        # return as LineString
+        logger.debug("return linestring")
+        return _smooth_linestring(
+            LineString(
+                vor.vertices[_get_least_curved_path(
+                    longest_paths, vor.vertices
+                )]
+            ), smooth_sigma
+        )
 
-        logger.debug("smooth linestring")
-        centerline = _smooth_linestring(
-            LineString(vor.vertices[best_path]), smooth_sigma)
-        logger.debug("centerline: %s", centerline)
-        return centerline
+    elif geom.geom_type == "MultiPolygon":
+        logger.debug("MultiPolygon found with %s sub-geometries", len(geom))
+        # get centerline for each part Polygon and combine into MultiLineString
+        return MultiLineString([
+            get_centerline(
+                subgeom, segmentize_maxlen, max_points, simplification,
+                smooth_sigma
+            )
+            for subgeom in geom
+        ])
 
     else:
         raise TypeError(
@@ -105,19 +112,21 @@ def get_centerline(
         )
 
 
+# helper functions #
+####################
+
 def _segmentize(geom, max_len):
     """Interpolate points on segments if they exceed maximum length."""
     points = []
-    p_xy = None
-    for xy in geom.coords:
-        if p_xy is not None:
-            line_segment = LineString([p_xy, xy])
-            points.extend([
-                line_segment.interpolate(max_len * i).coords[0]
-                for i in range(int(line_segment.length / max_len))
-            ])
-        p_xy = xy
-        points.append(xy)
+    for previous, current in zip(geom.coords, geom.coords[1:]):
+        line_segment = LineString([previous, current])
+        # add points on line segment if necessary
+        points.extend([
+            line_segment.interpolate(max_len * i).coords[0]
+            for i in range(int(line_segment.length / max_len))
+        ])
+        # finally, add end point
+        points.append(current)
     return LineString(points)
 
 
@@ -136,7 +145,6 @@ def _get_longest_paths(nodes, graph, maxnum=5):
     def _gen_paths_distances():
         for node1, node2 in combinations(nodes, r=2):
             try:
-                # path = nx.shortest_path(graph, node1, node2, "weight")
                 yield nx.single_source_dijkstra(
                     graph, node1, node2, 1000000, "weight"
                 )
@@ -150,36 +158,29 @@ def _get_longest_paths(nodes, graph, maxnum=5):
 
 def _get_least_curved_path(paths, vertices):
     """Return path with smallest angles."""
-    angle_sums = []
-    for path in paths:
-        path_angles = _get_path_angles(path, vertices)
-        angle_sum = abs(sum(path_angles))
-        angle_sums.append(angle_sum)
-    return [x for (y, x) in sorted(zip(angle_sums, paths))][0]
+    return min(
+        zip([_get_path_angles_sum(path, vertices) for path in paths], paths),
+        key=operator.itemgetter(0)
+    )[1]
 
 
-def _get_path_angles(path, vertices):
+def _get_path_angles_sum(path, vertices):
     """Return all angles between edges from path."""
-    angles = []
-    for index, point in enumerate(path):
-        if index > 0 and index < len(path) - 1:
-            previous_point = vertices[path[index - 1]]
-            current_point = vertices[point]
-            next_point = vertices[path[index + 1]]
-            angles.append(
-                _get_angle(
-                    (previous_point, current_point),
-                    (current_point, next_point)
-                )
-            )
-    return angles
+    return sum([
+        _get_absolute_angle(
+            (vertices[pre], vertices[cur]), (vertices[cur], vertices[nex])
+        )
+        for pre, cur, nex in zip(path[:-1], path[1:], path[2:])
+    ])
 
 
-def _get_angle(edge1, edge2):
-    """Return angle between edges."""
+def _get_absolute_angle(edge1, edge2):
+    """Return absolute angle between edges."""
     v1 = edge1[0] - edge1[1]
     v2 = edge2[0] - edge2[1]
-    return np.degrees(np.math.atan2(np.linalg.det([v1, v2]), np.dot(v1, v2)))
+    return abs(
+        np.degrees(np.math.atan2(np.linalg.det([v1, v2]), np.dot(v1, v2)))
+    )
 
 
 def _get_end_nodes(graph):
@@ -210,12 +211,13 @@ def _multilinestring_from_voronoi(vor, geometry):
 def _yield_ridge_vertices(vor, geometry, dist=False):
     """Yield Voronoi ridge vertices within geometry."""
     for x, y in vor.ridge_vertices:
-        if x >= 0 and y >= 0:
-            point1 = Point(vor.vertices[[x, y]][0])
-            point2 = Point(vor.vertices[[x, y]][1])
-            # Eliminate all points outside our geometry.
-            if point1.within(geometry) and point2.within(geometry):
-                if dist:
-                    yield x, y, point1.distance(point2)
-                else:
-                    yield x, y
+        if x < 0 or y < 0:
+            continue
+        point1 = Point(vor.vertices[[x, y]][0])
+        point2 = Point(vor.vertices[[x, y]][1])
+        # Eliminate all points outside our geometry.
+        if point1.within(geometry) and point2.within(geometry):
+            if dist:
+                yield x, y, point1.distance(point2)
+            else:
+                yield x, y

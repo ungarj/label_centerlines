@@ -15,3 +15,4 @@ def test_cli():
 def test_centerline(alps_shape):
     cl = get_centerline(alps_shape)
     assert cl.is_valid
+    assert cl.geom_type == "LineString"
