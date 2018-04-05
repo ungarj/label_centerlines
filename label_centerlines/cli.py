@@ -10,8 +10,19 @@ import tqdm
 from label_centerlines import __version__, get_centerline
 from label_centerlines.exceptions import CenterlineError
 
+
+class TqdmHandler(logging.StreamHandler):
+    """Custom handler to avoid log outputs to interfere with progress bar."""
+    def __init__(self):
+        logging.StreamHandler.__init__(self)
+
+    def emit(self, record):
+        msg = self.format(record)
+        tqdm.tqdm.write(msg)
+
+
 formatter = logging.Formatter('%(asctime)s %(levelname)s %(name)s %(message)s')
-stream_handler = logging.StreamHandler()
+stream_handler = TqdmHandler()
 stream_handler.setFormatter(formatter)
 stream_handler.setLevel(logging.INFO)
 logging.getLogger().addHandler(stream_handler)
