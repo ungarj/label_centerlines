@@ -76,7 +76,7 @@ CLI
 API
 ---
 
-.. code-block:: python
+.. code-block::
 
     >>> from label_centerlines import get_centerline
     >>> help(get_centerline)
