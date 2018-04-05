@@ -159,11 +159,10 @@ def _get_longest_paths(nodes, graph, maxnum=5):
         for node1, node2 in combinations(nodes, r=2):
             try:
                 yield nx.single_source_dijkstra(
-                    graph, node1, node2, 1000000, "weight"
+                    G=graph, source=node1, target=node2, weight="weight"
                 )
             except NetworkXNoPath:
                 continue
-
     return [
         x for (y, x) in sorted(_gen_paths_distances(), reverse=True)
     ][:maxnum]
