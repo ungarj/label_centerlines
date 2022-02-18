@@ -62,6 +62,13 @@ logger = logging.getLogger(__name__)
     default=5
 )
 @click.option(
+    "--max_paths",
+    type=int,
+    help="Number of longest paths used to create the centerlines. "
+         "(default: 5)",
+    default=5
+)
+@click.option(
     "--output_driver",
     type=click.Choice(['GeoJSON', 'GPKG']),
     help="Output format. "
@@ -80,7 +87,7 @@ logger = logging.getLogger(__name__)
 )
 def main(
     input_path, output_path, segmentize_maxlen, max_points, simplification,
-    smooth, output_driver, verbose, debug
+    smooth, max_paths, output_driver, verbose, debug
 ):
     """
     Read features, convert to centerlines and write to output.
@@ -109,7 +116,7 @@ def main(
         tasks = (
             executor.submit(
                 _feature_worker, feature, segmentize_maxlen, max_points,
-                simplification, smooth,
+                simplification, smooth, max_paths
             )
             for feature in src
         )
@@ -134,13 +141,13 @@ def main(
 
 
 def _feature_worker(
-    feature, segmentize_maxlen, max_points, simplification, smooth
+    feature, segmentize_maxlen, max_points, simplification, smooth, max_paths
 ):
     try:
         start = time.time()
         centerline = get_centerline(
             shape(feature["geometry"]), segmentize_maxlen, max_points,
-            simplification, smooth
+            simplification, smooth, max_paths
         )
     except CenterlineError:
         return [(

@@ -67,6 +67,8 @@ CLI
       --simplification FLOAT          Simplification threshold. (default: 0.05)
       --smooth INTEGER                Smoothness of the output centerlines.
                                       (default: 5)
+      --max_paths INTEGER             Number of longest paths used to create the centerlines.
+                                      (default: 5)
       --output_driver [GeoJSON|GPKG]  Output format. (default: 'GeoJSON')
       --verbose                       show information on processed features
       --debug                         show debug log messages
@@ -81,7 +83,7 @@ API
     >>> from label_centerlines import get_centerline
     >>> help(get_centerline)
 
-    get_centerline(geom, segmentize_maxlen=0.5, max_points=3000, simplification=0.05, smooth_sigma=5)
+    get_centerline(geom, segmentize_maxlen=0.5, max_points=3000, simplification=0.05, smooth_sigma=5, max_paths=5)
     Return centerline from geometry.
 
     Parameters:
@@ -94,6 +96,8 @@ API
     simplification : Simplification threshold.
         (default: 0.05)
     smooth_sigma : Smoothness of the output centerlines.
+        (default: 5)
+    max_paths : Number of longest paths used to create the centerlines.
         (default: 5)
 
     Returns:
