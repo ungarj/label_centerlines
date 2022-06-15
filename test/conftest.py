@@ -9,4 +9,4 @@ TESTDATA_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), "testda
 @pytest.fixture
 def alps_shape():
     with fiona.open(os.path.join(TESTDATA_DIR, "alps.geojson"), "r") as src:
-        return shape(next(src)["geometry"])
+        return shape(next(iter(src))["geometry"])

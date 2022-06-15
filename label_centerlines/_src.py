@@ -5,7 +5,7 @@ from networkx.exception import NetworkXNoPath
 import numpy as np
 import operator
 from scipy.spatial import Voronoi
-from scipy.ndimage import filters
+from scipy.ndimage import gaussian_filter1d
 from shapely.geometry import LineString, MultiLineString, Point, MultiPoint
 
 from label_centerlines.exceptions import CenterlineError
@@ -100,10 +100,10 @@ def get_centerline(
         return centerline
 
     elif geom.geom_type == "MultiPolygon":
-        logger.debug("MultiPolygon found with %s sub-geometries", len(geom))
+        logger.debug("MultiPolygon found with %s sub-geometries", len(geom.geoms))
         # get centerline for each part Polygon and combine into MultiLineString
         sub_centerlines = []
-        for subgeom in geom:
+        for subgeom in geom.geoms:
             try:
                 sub_centerline = get_centerline(
                     subgeom, segmentize_maxlen, max_points, simplification, smooth_sigma
@@ -148,8 +148,8 @@ def _smooth_linestring(linestring, smooth_sigma):
     """Use a gauss filter to smooth out the LineString coordinates."""
     return LineString(
         zip(
-            np.array(filters.gaussian_filter1d(linestring.xy[0], smooth_sigma)),
-            np.array(filters.gaussian_filter1d(linestring.xy[1], smooth_sigma)),
+            np.array(gaussian_filter1d(linestring.xy[0], smooth_sigma)),
+            np.array(gaussian_filter1d(linestring.xy[1], smooth_sigma)),
         )
     )
 
