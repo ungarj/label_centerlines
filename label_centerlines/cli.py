@@ -13,6 +13,7 @@ from label_centerlines.exceptions import CenterlineError
 
 class TqdmHandler(logging.StreamHandler):
     """Custom handler to avoid log outputs to interfere with progress bar."""
+
     def __init__(self):
         logging.StreamHandler.__init__(self)
 
@@ -21,7 +22,7 @@ class TqdmHandler(logging.StreamHandler):
         tqdm.tqdm.write(msg)
 
 
-formatter = logging.Formatter('%(asctime)s %(levelname)s %(name)s %(message)s')
+formatter = logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s")
 stream_handler = TqdmHandler()
 stream_handler.setFormatter(formatter)
 stream_handler.setLevel(logging.INFO)
@@ -31,56 +32,51 @@ logger = logging.getLogger(__name__)
 
 
 @click.command()
-@click.version_option(version=__version__, message='%(version)s')
-@click.argument('input_path')
-@click.argument('output_path')
+@click.version_option(version=__version__, message="%(version)s")
+@click.argument("input_path")
+@click.argument("output_path")
 @click.option(
-    '--segmentize_maxlen',
+    "--segmentize_maxlen",
     type=float,
     help="Maximum segment length for polygon borders. (default: 0.5)",
-    default=0.5
+    default=0.5,
 )
 @click.option(
     "--max_points",
     type=int,
-    help="Number of points per geometry allowed before simplifying. "
-         "(default: 3000)",
-    default=3000
+    help="Number of points per geometry allowed before simplifying. " "(default: 3000)",
+    default=3000,
 )
 @click.option(
     "--simplification",
     type=float,
-    help="Simplification threshold. "
-         "(default: 0.05)",
-    default=0.05
+    help="Simplification threshold. " "(default: 0.05)",
+    default=0.05,
 )
 @click.option(
     "--smooth",
     type=int,
-    help="Smoothness of the output centerlines. "
-         "(default: 5)",
-    default=5
+    help="Smoothness of the output centerlines. " "(default: 5)",
+    default=5,
 )
 @click.option(
     "--output_driver",
-    type=click.Choice(['GeoJSON', 'GPKG']),
-    help="Output format. "
-         "(default: 'GeoJSON')",
-    default="GeoJSON"
+    type=click.Choice(["GeoJSON", "GPKG"]),
+    help="Output format. " "(default: 'GeoJSON')",
+    default="GeoJSON",
 )
-@click.option(
-    "--verbose",
-    is_flag=True,
-    help="show information on processed features"
-)
-@click.option(
-    "--debug",
-    is_flag=True,
-    help="show debug log messages"
-)
+@click.option("--verbose", is_flag=True, help="show information on processed features")
+@click.option("--debug", is_flag=True, help="show debug log messages")
 def main(
-    input_path, output_path, segmentize_maxlen, max_points, simplification,
-    smooth, output_driver, verbose, debug
+    input_path,
+    output_path,
+    segmentize_maxlen,
+    max_points,
+    simplification,
+    smooth,
+    output_driver,
+    verbose,
+    debug,
 ):
     """
     Read features, convert to centerlines and write to output.
@@ -99,24 +95,28 @@ def main(
         src = es.enter_context(fiona.open(input_path, "r"))
         dst = es.enter_context(
             fiona.open(
-                output_path, "w", schema=dict(
-                    src.schema.copy(), geometry="LineString"
-                ), crs=src.crs, driver=output_driver
-                )
+                output_path,
+                "w",
+                schema=dict(src.schema.copy(), geometry="LineString"),
+                crs=src.crs,
+                driver=output_driver,
+            )
         )
         executor = es.enter_context(concurrent.futures.ProcessPoolExecutor())
 
         tasks = (
             executor.submit(
-                _feature_worker, feature, segmentize_maxlen, max_points,
-                simplification, smooth,
+                _feature_worker,
+                feature,
+                segmentize_maxlen,
+                max_points,
+                simplification,
+                smooth,
             )
             for feature in src
         )
         for task in tqdm.tqdm(
-            concurrent.futures.as_completed(tasks),
-            disable=debug,
-            total=len(src)
+            concurrent.futures.as_completed(tasks), disable=debug, total=len(src)
         ):
             # output is split up into parts of single part geometries to meet
             # GeoPackage requirements
@@ -127,26 +127,24 @@ def main(
                 else:
                     logger.error(
                         "centerline could not be extracted from feature %s",
-                        feature["properties"]
+                        feature["properties"],
                     )
                 if verbose:
                     tqdm.tqdm.write("%ss: %s" % (elapsed, feature["properties"]))
 
 
-def _feature_worker(
-    feature, segmentize_maxlen, max_points, simplification, smooth
-):
+def _feature_worker(feature, segmentize_maxlen, max_points, simplification, smooth):
     try:
         start = time.time()
         centerline = get_centerline(
-            shape(feature["geometry"]), segmentize_maxlen, max_points,
-            simplification, smooth
+            shape(feature["geometry"]),
+            segmentize_maxlen,
+            max_points,
+            simplification,
+            smooth,
         )
     except CenterlineError:
-        return [(
-            dict(properties=feature["properties"]),
-            round(time.time() - start, 3)
-        )]
+        return [(dict(properties=feature["properties"]), round(time.time() - start, 3))]
     finally:
         elapsed = round(time.time() - start, 3)
 

@@ -14,11 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_centerline(
-    geom,
-    segmentize_maxlen=0.5,
-    max_points=3000,
-    simplification=0.05,
-    smooth_sigma=5
+    geom, segmentize_maxlen=0.5, max_points=3000, simplification=0.05, smooth_sigma=5
 ):
     """
     Return centerline from geometry.
@@ -67,9 +63,7 @@ def get_centerline(
         # from within the original polygon
         vor = Voronoi(outline_points)
         graph = _graph_from_voronoi(vor, geom)
-        logger.debug(
-            "voronoi diagram: %s", _multilinestring_from_voronoi(vor, geom)
-        )
+        logger.debug("voronoi diagram: %s", _multilinestring_from_voronoi(vor, geom))
 
         # determine longest path between all end nodes from graph
         end_nodes = _get_end_nodes(graph)
@@ -90,10 +84,9 @@ def get_centerline(
         # return as LineString
         centerline = _smooth_linestring(
             LineString(
-                vor.vertices[_get_least_curved_path(
-                    longest_paths, vor.vertices
-                )]
-            ), smooth_sigma
+                vor.vertices[_get_least_curved_path(longest_paths, vor.vertices)]
+            ),
+            smooth_sigma,
         )
         logger.debug("centerline: %s", centerline)
         logger.debug("return linestring")
@@ -106,8 +99,7 @@ def get_centerline(
         for subgeom in geom:
             try:
                 sub_centerline = get_centerline(
-                    subgeom, segmentize_maxlen, max_points, simplification,
-                    smooth_sigma
+                    subgeom, segmentize_maxlen, max_points, simplification, smooth_sigma
                 )
                 sub_centerlines.append(sub_centerline)
             except CenterlineError as e:
@@ -120,13 +112,13 @@ def get_centerline(
 
     else:
         raise TypeError(
-            "Geometry type must be Polygon or MultiPolygon, not %s" %
-            geom.geom_type
+            "Geometry type must be Polygon or MultiPolygon, not %s" % geom.geom_type
         )
 
 
 # helper functions #
 ####################
+
 
 def _segmentize(geom, max_len):
     """Interpolate points on segments if they exceed maximum length."""
@@ -134,10 +126,12 @@ def _segmentize(geom, max_len):
     for previous, current in zip(geom.coords, geom.coords[1:]):
         line_segment = LineString([previous, current])
         # add points on line segment if necessary
-        points.extend([
-            line_segment.interpolate(max_len * i).coords[0]
-            for i in range(int(line_segment.length / max_len))
-        ])
+        points.extend(
+            [
+                line_segment.interpolate(max_len * i).coords[0]
+                for i in range(int(line_segment.length / max_len))
+            ]
+        )
         # finally, add end point
         points.append(current)
     return LineString(points)
@@ -148,13 +142,14 @@ def _smooth_linestring(linestring, smooth_sigma):
     return LineString(
         zip(
             np.array(filters.gaussian_filter1d(linestring.xy[0], smooth_sigma)),
-            np.array(filters.gaussian_filter1d(linestring.xy[1], smooth_sigma))
+            np.array(filters.gaussian_filter1d(linestring.xy[1], smooth_sigma)),
         )
     )
 
 
 def _get_longest_paths(nodes, graph, maxnum=5):
     """Return longest paths of all possible paths between a list of nodes."""
+
     def _gen_paths_distances():
         for node1, node2 in combinations(nodes, r=2):
             try:
@@ -163,36 +158,35 @@ def _get_longest_paths(nodes, graph, maxnum=5):
                 )
             except NetworkXNoPath:
                 continue
-    return [
-        x for (y, x) in sorted(_gen_paths_distances(), reverse=True)
-    ][:maxnum]
+
+    return [x for (y, x) in sorted(_gen_paths_distances(), reverse=True)][:maxnum]
 
 
 def _get_least_curved_path(paths, vertices):
     """Return path with smallest angles."""
     return min(
         zip([_get_path_angles_sum(path, vertices) for path in paths], paths),
-        key=operator.itemgetter(0)
+        key=operator.itemgetter(0),
     )[1]
 
 
 def _get_path_angles_sum(path, vertices):
     """Return all angles between edges from path."""
-    return sum([
-        _get_absolute_angle(
-            (vertices[pre], vertices[cur]), (vertices[cur], vertices[nex])
-        )
-        for pre, cur, nex in zip(path[:-1], path[1:], path[2:])
-    ])
+    return sum(
+        [
+            _get_absolute_angle(
+                (vertices[pre], vertices[cur]), (vertices[cur], vertices[nex])
+            )
+            for pre, cur, nex in zip(path[:-1], path[1:], path[2:])
+        ]
+    )
 
 
 def _get_absolute_angle(edge1, edge2):
     """Return absolute angle between edges."""
     v1 = edge1[0] - edge1[1]
     v2 = edge2[0] - edge2[1]
-    return abs(
-        np.degrees(np.math.atan2(np.linalg.det([v1, v2]), np.dot(v1, v2)))
-    )
+    return abs(np.degrees(np.math.atan2(np.linalg.det([v1, v2]), np.dot(v1, v2))))
 
 
 def _get_end_nodes(graph):
@@ -211,13 +205,12 @@ def _graph_from_voronoi(vor, geometry):
 
 def _multilinestring_from_voronoi(vor, geometry):
     """Return MultiLineString geometry from Voronoi diagram."""
-    return MultiLineString([
-        LineString([
-            Point(vor.vertices[[x, y]][0]),
-            Point(vor.vertices[[x, y]][1])
-        ])
-        for x, y in _yield_ridge_vertices(vor, geometry)
-    ])
+    return MultiLineString(
+        [
+            LineString([Point(vor.vertices[[x, y]][0]), Point(vor.vertices[[x, y]][1])])
+            for x, y in _yield_ridge_vertices(vor, geometry)
+        ]
+    )
 
 
 def _yield_ridge_vertices(vor, geometry, dist=False):
