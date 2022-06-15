@@ -60,6 +60,12 @@ logger = logging.getLogger(__name__)
     default=5,
 )
 @click.option(
+    "--max_paths",
+    type=int,
+    help="Number of longest paths used to create the centerlines. " "(default: 5)",
+    default=5,
+)
+@click.option(
     "--output_driver",
     type=click.Choice(["GeoJSON", "GPKG"]),
     help="Output format. " "(default: 'GeoJSON')",
@@ -74,6 +80,7 @@ def main(
     max_points,
     simplification,
     smooth,
+    max_paths,
     output_driver,
     verbose,
     debug,
@@ -112,6 +119,7 @@ def main(
                 max_points,
                 simplification,
                 smooth,
+                max_paths,
             )
             for feature in src
         )
@@ -133,7 +141,9 @@ def main(
                     tqdm.tqdm.write("%ss: %s" % (elapsed, feature["properties"]))
 
 
-def _feature_worker(feature, segmentize_maxlen, max_points, simplification, smooth):
+def _feature_worker(
+    feature, segmentize_maxlen, max_points, simplification, smooth, max_paths
+):
     try:
         start = time.time()
         centerline = get_centerline(
@@ -142,6 +152,7 @@ def _feature_worker(feature, segmentize_maxlen, max_points, simplification, smoo
             max_points,
             simplification,
             smooth,
+            max_paths,
         )
     except CenterlineError:
         return [(dict(properties=feature["properties"]), round(time.time() - start, 3))]

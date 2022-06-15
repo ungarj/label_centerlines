@@ -14,7 +14,12 @@ logger = logging.getLogger(__name__)
 
 
 def get_centerline(
-    geom, segmentize_maxlen=0.5, max_points=3000, simplification=0.05, smooth_sigma=5
+    geom,
+    segmentize_maxlen=0.5,
+    max_points=3000,
+    simplification=0.05,
+    smooth_sigma=5,
+    max_paths=5,
 ):
     """
     Return centerline from geometry.
@@ -29,6 +34,8 @@ def get_centerline(
     simplification : Simplification threshold.
         (default: 0.05)
     smooth_sigma : Smoothness of the output centerlines.
+        (default: 5)
+    max_paths : Number of longest paths used to create the centerlines.
         (default: 5)
 
     Returns:
@@ -71,7 +78,7 @@ def get_centerline(
             logger.debug("Polygon has too few points")
             raise CenterlineError("Polygon has too few points")
         logger.debug("get longest path from %s end nodes", len(end_nodes))
-        longest_paths = _get_longest_paths(end_nodes, graph)
+        longest_paths = _get_longest_paths(end_nodes, graph, max_paths)
         if not longest_paths:
             logger.debug("no paths found between end nodes")
             raise CenterlineError("no paths found between end nodes")
@@ -80,7 +87,7 @@ def get_centerline(
             for path in longest_paths:
                 logger.debug(LineString(vor.vertices[path]))
 
-        # get least curved path from the five longest paths, smooth and
+        # get least curved path from the longest paths, smooth and
         # return as LineString
         centerline = _smooth_linestring(
             LineString(
@@ -147,7 +154,7 @@ def _smooth_linestring(linestring, smooth_sigma):
     )
 
 
-def _get_longest_paths(nodes, graph, maxnum=5):
+def _get_longest_paths(nodes, graph, max_paths):
     """Return longest paths of all possible paths between a list of nodes."""
 
     def _gen_paths_distances():
@@ -159,7 +166,7 @@ def _get_longest_paths(nodes, graph, maxnum=5):
             except NetworkXNoPath:
                 continue
 
-    return [x for (y, x) in sorted(_gen_paths_distances(), reverse=True)][:maxnum]
+    return [x for (y, x) in sorted(_gen_paths_distances(), reverse=True)][:max_paths]
 
 
 def _get_least_curved_path(paths, vertices):
