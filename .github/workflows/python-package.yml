@@ -31,7 +31,7 @@ jobs:
       env:
         CURL_CA_BUNDLE: /etc/ssl/certs/ca-certificates.crt
       run: |
-        pip install -r requirements.txt flake8
+        pip install -r requirements.txt flake8 pytest pytest-coverage
         pip install -e .
 
     - name: Lint with flake8
