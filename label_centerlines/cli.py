@@ -164,5 +164,5 @@ def _feature_worker(
     elif centerline.geom_type == "MultiLineString":
         return [
             (dict(feature, geometry=mapping(subgeom)), elapsed)
-            for subgeom in centerline
+            for subgeom in centerline.geoms
         ]

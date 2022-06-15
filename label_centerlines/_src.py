@@ -100,10 +100,10 @@ def get_centerline(
         return centerline
 
     elif geom.geom_type == "MultiPolygon":
-        logger.debug("MultiPolygon found with %s sub-geometries", len(geom))
+        logger.debug("MultiPolygon found with %s sub-geometries", len(geom.geoms))
         # get centerline for each part Polygon and combine into MultiLineString
         sub_centerlines = []
-        for subgeom in geom:
+        for subgeom in geom.geoms:
             try:
                 sub_centerline = get_centerline(
                     subgeom, segmentize_maxlen, max_points, simplification, smooth_sigma
