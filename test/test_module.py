@@ -1,5 +1,4 @@
 from click.testing import CliRunner
-import pytest
 
 from label_centerlines import __version__, get_centerline
 from label_centerlines.cli import main
@@ -7,7 +6,7 @@ from label_centerlines.cli import main
 
 def test_cli():
     runner = CliRunner()
-    result = runner.invoke(main, ['--version'])
+    result = runner.invoke(main, ["--version"])
     assert result.exit_code == 0
     assert __version__ in result.output
 

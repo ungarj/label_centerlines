@@ -3,9 +3,7 @@ import os
 import pytest
 from shapely.geometry import shape
 
-TESTDATA_DIR = os.path.join(
-    os.path.dirname(os.path.realpath(__file__)), "testdata"
-)
+TESTDATA_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), "testdata")
 
 
 @pytest.fixture
